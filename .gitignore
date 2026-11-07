@@ -1,0 +1,69 @@
+# =============================================================================
+# Budget Care — Git Ignore Configuration
+# =============================================================================
+
+# Environment variables & secrets (NEVER commit secrets!)
+.env
+.env.*
+!.env.example
+
+# Python runtime artifacts & bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+env.bak/
+venv.bak/
+
+# Testing, typecheck & linter caches
+.pytest_cache/
+.hypothesis/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+nosetests.xml
+coverage.xml
+*.cover
+.tox/
+.nox/
+
+# Package builds & distribution
+build/
+dist/
+*.egg-info/
+.eggs/
+eggs/
+parts/
+var/
+sdist/
+develop-eggs/
+.installed.cfg
+*.egg
+
+# Logs & temporary files
+*.log
+*.sqlite
+*.sqlite3
+
+# Operating System & IDE artifacts
+.DS_Store
+Thumbs.db
+ehthumbs.db
+[Dd]esktop.ini
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Vercel deployment cache
+.vercel/
