@@ -1,11 +1,13 @@
+from collections.abc import Sequence
 from datetime import UTC, datetime
+from zoneinfo import ZoneInfo
 
 from aiogram import Router
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from budgetcare.bot.copy import get_text
-from budgetcare.db.tables import UserTable
+from budgetcare.db.tables import EntryTable, FeedingPeriodTable, UserTable
 from budgetcare.db.uow import UnitOfWork
 from budgetcare.domain.money import format_cents
 from budgetcare.domain.pets import SPECIES_EMOJI
@@ -24,6 +26,40 @@ MOOD_EMOJIS = {
     2: "😐",
     1: "🥺",
 }
+
+
+def _get_goal_feed_status_and_cutoff(
+    periods: Sequence[FeedingPeriodTable],
+    entries: Sequence[EntryTable],
+    tz: ZoneInfo,
+) -> tuple[str, str, int]:
+    """Determine (feed_status, cutoff_str, feedings_remaining) for a goal.
+
+    If the current open period has already been fed, the 'next cut-off' reflects
+    the subsequent open period (e.g. next day/week/month cut-off).
+    """
+    open_periods = [p for p in periods if p.status == "open"]
+    if not open_periods:
+        return "Awaiting tick ⏳", "Finalized", 0
+
+    curr_period = open_periods[0]
+    has_fed = any(
+        e.period_idx == curr_period.idx and e.is_feeding and e.undone_at is None
+        for e in entries
+    )
+    feed_status = "Fed today ✅" if has_fed else "Hungry today 🥣"
+    feedings_remaining = max(0, len(open_periods) - (1 if has_fed else 0))
+
+    if has_fed:
+        next_period = next((p for p in open_periods if p.idx > curr_period.idx), None)
+        if next_period:
+            cutoff_str = next_period.cutoff_at.astimezone(tz).strftime("%a, %d %b %H:%M")
+        else:
+            cutoff_str = "All feedings completed 🎉"
+    else:
+        cutoff_str = curr_period.cutoff_at.astimezone(tz).strftime("%a, %d %b %H:%M")
+
+    return feed_status, cutoff_str, feedings_remaining
 
 
 @router.message(Command("goals"))
@@ -64,18 +100,7 @@ async def handle_goals_command(message: Message, user: UserTable, uow: UnitOfWor
             )
             quality_pct = round(live_quality * 100)
 
-            # Check current open period
-            open_period = next((p for p in periods if p.status == "open"), None)
-            if open_period:
-                has_fed = any(
-                    e.period_idx == open_period.idx and e.is_feeding and e.undone_at is None
-                    for e in entries
-                )
-                feed_status = "Fed today ✅" if has_fed else "Hungry today 🥣"
-                cutoff_str = open_period.cutoff_at.astimezone(tz).strftime("%a, %d %b %H:%M")
-            else:
-                feed_status = "Awaiting tick ⏳"
-                cutoff_str = "Finalized"
+            feed_status, cutoff_str, _ = _get_goal_feed_status_and_cutoff(periods, entries, tz)
 
             progress_pct = (
                 min(100, (deposited * 100) // g.target_cents) if g.target_cents > 0 else 100
@@ -155,12 +180,11 @@ async def handle_goal_details_callback(
         )
         quality_pct = round(live_quality * 100)
 
-        open_periods = [p for p in periods if p.status == "open"]
-        feedings_remaining = len(open_periods)
-        next_cutoff = (
-            open_periods[0].cutoff_at.astimezone(tz).strftime("%a, %d %b %H:%M")
-            if open_periods
-            else "Completed"
+        _, next_cutoff, feedings_remaining = _get_goal_feed_status_and_cutoff(periods, entries, tz)
+        cutoff_suffix = (
+            " (23:59 local)"
+            if not next_cutoff.startswith("All feedings") and next_cutoff != "Finalized"
+            else ""
         )
         progress_pct = (
             min(100, (deposited * 100) // goal.target_cents) if goal.target_cents > 0 else 100
@@ -173,7 +197,7 @@ async def handle_goal_details_callback(
             f"• Condition: <b>{condition}%</b> ({mood_emoji})\n"
             f"• Live Quality: <b>{quality_pct}%</b>\n"
             f"• Feedings remaining: <b>{feedings_remaining}</b> of {goal.total_feedings}\n"
-            f"• Next cut-off: <b>{next_cutoff}</b> (23:59 local)\n"
+            f"• Next cut-off: <b>{next_cutoff}</b>{cutoff_suffix}\n"
             f"• Nominal per feeding: ~<b>{format_cents(goal.nominal_cents)}</b>\n"
         )
 
@@ -215,17 +239,7 @@ async def handle_goal_details_callback(
                 mood_emoji = MOOD_EMOJIS.get(mood_tier.value, "🐾")
                 pet_emoji = SPECIES_EMOJI.get(g.species.lower(), "🐾")
 
-                open_period = next((p for p in periods if p.status == "open"), None)
-                if open_period:
-                    has_fed = any(
-                        e.period_idx == open_period.idx and e.is_feeding and e.undone_at is None
-                        for e in entries
-                    )
-                    feed_status = "Fed today ✅" if has_fed else "Hungry today 🥣"
-                    cutoff_str = open_period.cutoff_at.astimezone(tz).strftime("%a, %d %b %H:%M")
-                else:
-                    feed_status = "Awaiting tick ⏳"
-                    cutoff_str = "Finalized"
+                feed_status, cutoff_str, _ = _get_goal_feed_status_and_cutoff(periods, entries, tz)
 
                 lines.append(
                     f"• {pet_emoji} <b>{g.pet_name}</b> ({g.species.capitalize()}) — <i>{g.name}</i>\n"

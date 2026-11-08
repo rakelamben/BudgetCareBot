@@ -224,7 +224,14 @@ async def feed_goal(
         props={"amount_cents": amount_cents, "period_idx": target_period.idx},
     )
 
-    next_cutoff = target_period.cutoff_at if target_period.status == "open" else None
+    if is_feeding:
+        next_period = next(
+            (p for p in periods if p.idx > target_period.idx and p.status == "open"),
+            None,
+        )
+        next_cutoff = next_period.cutoff_at if next_period else None
+    else:
+        next_cutoff = target_period.cutoff_at if target_period.status == "open" else None
 
     return FeedingResult(
         success=True,
