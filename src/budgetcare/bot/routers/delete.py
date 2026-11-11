@@ -14,6 +14,9 @@ router = Router(name="delete")
 
 @router.message(Command("delete"))
 async def handle_delete_command(message: Message, user: UserTable, uow: UnitOfWork) -> None:
+    # Reset any active conversation state
+    await uow.conversations.delete(user.id)
+
     active_goals = await uow.goals.list_active_by_user(user.id)
     if not active_goals:
         await message.answer(get_text("err_no_goal", user.variant), parse_mode="HTML")
@@ -51,11 +54,25 @@ async def handle_delete_callback(callback: CallbackQuery, user: UserTable, uow: 
 
     if action == "no":
         await callback.answer()
-        if callback.message:
-            await callback.message.edit_text(
-                get_text("delete_cancelled", user.variant),
-                parse_mode="HTML",
-            )
+        await uow.conversations.delete(user.id)
+        cancelled_text = get_text("delete_cancelled", user.variant)
+        try:
+            if isinstance(callback.message, Message):
+                await callback.message.edit_text(cancelled_text, parse_mode="HTML")
+            elif callback.message and callback.bot:
+                await callback.bot.edit_message_text(
+                    text=cancelled_text,
+                    chat_id=callback.message.chat.id,
+                    message_id=callback.message.message_id,
+                    parse_mode="HTML",
+                )
+        except Exception:
+            if callback.bot and callback.message:
+                await callback.bot.send_message(
+                    chat_id=callback.message.chat.id,
+                    text=cancelled_text,
+                    parse_mode="HTML",
+                )
         return
 
     if action == "g":
@@ -65,6 +82,7 @@ async def handle_delete_callback(callback: CallbackQuery, user: UserTable, uow: 
             await callback.answer("Goal not found.", show_alert=True)
             return
 
+        await callback.answer()
         pet_emoji = SPECIES_EMOJI.get(goal.species.lower(), "🐾")
         text = get_text(
             "delete_prompt",
@@ -73,13 +91,26 @@ async def handle_delete_callback(callback: CallbackQuery, user: UserTable, uow: 
             pet_name=goal.pet_name,
             pet_emoji=pet_emoji,
         )
-        if callback.message:
-            await callback.message.edit_text(
-                text,
-                reply_markup=delete_confirm_keyboard(goal.id),
-                parse_mode="HTML",
-            )
-        await callback.answer()
+        kb = delete_confirm_keyboard(goal.id)
+        try:
+            if isinstance(callback.message, Message):
+                await callback.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
+            elif callback.message and callback.bot:
+                await callback.bot.edit_message_text(
+                    text=text,
+                    chat_id=callback.message.chat.id,
+                    message_id=callback.message.message_id,
+                    reply_markup=kb,
+                    parse_mode="HTML",
+                )
+        except Exception:
+            if callback.bot and callback.message:
+                await callback.bot.send_message(
+                    chat_id=callback.message.chat.id,
+                    text=text,
+                    reply_markup=kb,
+                    parse_mode="HTML",
+                )
 
     elif action == "ok":
         goal_id = int(parts[2])
@@ -88,11 +119,26 @@ async def handle_delete_callback(callback: CallbackQuery, user: UserTable, uow: 
             await callback.answer("Goal not found.", show_alert=True)
             return
 
+        await callback.answer()
         goal_name = goal.name
         await delete_single_goal(uow, user.id, goal.id)
-        await callback.answer()
-        if callback.message:
-            await callback.message.edit_text(
-                get_text("delete_done", user.variant, name=goal_name),
-                parse_mode="HTML",
-            )
+        await uow.conversations.delete(user.id)
+
+        done_text = get_text("delete_done", user.variant, name=goal_name)
+        try:
+            if isinstance(callback.message, Message):
+                await callback.message.edit_text(done_text, parse_mode="HTML")
+            elif callback.message and callback.bot:
+                await callback.bot.edit_message_text(
+                    text=done_text,
+                    chat_id=callback.message.chat.id,
+                    message_id=callback.message.message_id,
+                    parse_mode="HTML",
+                )
+        except Exception:
+            if callback.bot and callback.message:
+                await callback.bot.send_message(
+                    chat_id=callback.message.chat.id,
+                    text=done_text,
+                    parse_mode="HTML",
+                )

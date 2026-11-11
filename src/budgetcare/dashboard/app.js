@@ -78,7 +78,7 @@ function renderDashboard(data) {
   document.getElementById('stat-active-users').textContent = ov.active_users;
   document.getElementById('stat-users-breakdown').textContent = `${ov.total_users} total (${ov.blocked_users} blocked)`;
   document.getElementById('stat-graduated-goals').textContent = ov.graduated_goals;
-  document.getElementById('stat-active-goals').textContent = `${ov.active_goals} active (${ov.closed_goals} closed)`;
+  document.getElementById('stat-active-goals').textContent = `${ov.active_goals} active (${ov.expired_goals || ov.closed_goals || 0} expired)`;
 
   // 3. Habit Bars
   document.getElementById('free-food-pct').textContent = ov.free_food_ratio + '%';
@@ -206,9 +206,12 @@ function renderDevopsTab(devops) {
           <span class="font-bold text-indigo-400">${l.name}</span>
           <span class="text-slate-400">by ${l.locked_by || 'system'}</span>
         </div>
-        <span class="${l.is_expired ? 'text-slate-500' : 'text-emerald-400'} font-medium">
-          ${l.is_expired ? 'Expired' : 'Active Lease'}
-        </span>
+        <div class="text-right">
+          <span class="${l.is_expired ? 'text-slate-500' : 'text-emerald-400'} font-medium block">
+            ${l.is_expired ? 'Expired' : 'Active Lease'}
+          </span>
+          <span class="text-[10px] text-slate-500 font-mono">Until: ${l.locked_until || '-'}</span>
+        </div>
       </div>
     `).join('');
   } else {

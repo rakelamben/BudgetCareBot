@@ -1,7 +1,7 @@
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from budgetcare.db.tables import (
@@ -42,15 +42,15 @@ async def get_dashboard_summary(session: AsyncSession) -> dict[str, Any]:
         func.count(GoalTable.id).label("total"),
         func.count().filter(GoalTable.status == "active").label("active"),
         func.count().filter(GoalTable.status == "graduated").label("graduated"),
-        func.count().filter(GoalTable.status == "closed").label("closed"),
+        func.count().filter(GoalTable.status == "expired").label("expired"),
         func.coalesce(func.sum(GoalTable.target_cents).filter(GoalTable.status == "active"), 0).label("active_target_cents"),
     )
     goals_res = (await session.execute(goals_stmt)).one()
     total_goals = goals_res.total or 0
     active_goals_count = goals_res.active or 0
     graduated_goals_count = goals_res.graduated or 0
-    closed_goals_count = goals_res.closed or 0
-    active_target_cents = goals_res.active_target_cents or 0
+    expired_goals_count = goals_res.expired or 0
+    active_target_cents = int(goals_res.active_target_cents or 0)
 
     # Deposits & Entries summary
     entries_stmt = select(
@@ -59,7 +59,7 @@ async def get_dashboard_summary(session: AsyncSession) -> dict[str, Any]:
         func.count().filter(EntryTable.kind == "free_food", EntryTable.undone_at.is_(None)).label("free_food_count"),
     )
     entries_res = (await session.execute(entries_stmt)).one()
-    total_saved_cents = entries_res.total_saved or 0
+    total_saved_cents = int(entries_res.total_saved or 0)
     deposits_count = entries_res.deposits_count or 0
     free_food_count = entries_res.free_food_count or 0
 
@@ -220,15 +220,14 @@ async def get_dashboard_summary(session: AsyncSession) -> dict[str, Any]:
     }
 
     # Job locks
-    locks_stmt = select(JobLockTable).order_by(JobLockTable.locked_at.desc())
+    locks_stmt = select(JobLockTable).order_by(JobLockTable.locked_until.desc())
     locks = (await session.execute(locks_stmt)).scalars().all()
     locks_data = [
         {
             "name": l.name,
             "locked_by": l.locked_by,
-            "locked_at": l.locked_at.strftime("%Y-%m-%d %H:%M:%S UTC"),
-            "expires_at": l.expires_at.strftime("%Y-%m-%d %H:%M:%S UTC"),
-            "is_expired": l.expires_at < now,
+            "locked_until": l.locked_until.strftime("%Y-%m-%d %H:%M:%S UTC") if l.locked_until else "-",
+            "is_expired": (l.locked_until < now) if l.locked_until else True,
         }
         for l in locks
     ]
@@ -268,18 +267,22 @@ async def get_dashboard_summary(session: AsyncSession) -> dict[str, Any]:
     d7_threshold = timedelta(days=7)
     d21_threshold = timedelta(days=21)
 
-    retention_stmt = select(
-        func.count(
-            func.distinct(
-                func.case((EventTable.created_at >= UserTable.created_at + d7_threshold, UserTable.id))
-            )
-        ).label("retained_d7"),
-        func.count(
-            func.distinct(
-                func.case((EventTable.created_at >= UserTable.created_at + d21_threshold, UserTable.id))
-            )
-        ).label("retained_d21"),
-    ).outerjoin(EventTable, EventTable.user_id == UserTable.id)
+    retention_stmt = (
+        select(
+            func.count(
+                func.distinct(
+                    case((EventTable.occurred_at >= UserTable.created_at + d7_threshold, UserTable.id))
+                )
+            ).label("retained_d7"),
+            func.count(
+                func.distinct(
+                    case((EventTable.occurred_at >= UserTable.created_at + d21_threshold, UserTable.id))
+                )
+            ).label("retained_d21"),
+        )
+        .select_from(UserTable)
+        .outerjoin(EventTable, EventTable.user_id == UserTable.id)
+    )
 
     retention_res = (await session.execute(retention_stmt)).one()
     retained_d7 = retention_res.retained_d7 or 0
@@ -299,7 +302,8 @@ async def get_dashboard_summary(session: AsyncSession) -> dict[str, Any]:
             "total_goals": total_goals,
             "active_goals": active_goals_count,
             "graduated_goals": graduated_goals_count,
-            "closed_goals": closed_goals_count,
+            "expired_goals": expired_goals_count,
+            "closed_goals": expired_goals_count,
             "total_saved_formatted": format_cents(total_saved_cents),
             "total_saved_cents": total_saved_cents,
             "active_target_formatted": format_cents(active_target_cents),

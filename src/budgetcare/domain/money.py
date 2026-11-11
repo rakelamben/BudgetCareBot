@@ -29,6 +29,7 @@ def parse_amount_to_cents(amount_str: str) -> int:
 
 def format_cents(cents: int, show_cents: bool = True) -> str:
     """Format integer cents into a dollar string, e.g. 1750 -> '$17.50'."""
+    cents = int(cents)
     dollars = cents // 100
     remainder = cents % 100
     if remainder == 0 and not show_cents:

@@ -30,14 +30,14 @@ goal_frequency_enum = PG_ENUM(
 goal_status_enum = PG_ENUM(
     "active",
     "graduated",
-    "closed",
+    "expired",
     name="goal_status",
     schema="budget_care",
     create_type=False,
 )
 period_status_enum = PG_ENUM(
     "open",
-    "completed",
+    "fed",
     "missed",
     name="period_status",
     schema="budget_care",
