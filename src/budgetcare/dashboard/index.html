@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Budget Care | Real-Time Monitoring Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: { 50: '#eef2ff', 500: '#6366f1', 600: '#4f46e5', 700: '#4338ca' }
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="stylesheet" href="/dashboard/style.css" />
+  <script src="/dashboard/app.js" defer></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased selection:bg-brand-500 selection:text-white">
+
+  <!-- TOP NAVIGATION -->
+  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <span class="text-2xl">🐾</span>
+        <div>
+          <h1 class="text-lg font-bold tracking-tight text-white flex items-center gap-2">
+            Budget Care <span class="text-xs bg-indigo-500/20 text-indigo-400 font-semibold px-2 py-0.5 rounded border border-indigo-500/30">Monitoring</span>
+          </h1>
+          <p class="text-xs text-slate-400">Habit-Saving Telegram Bot Telemetry</p>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-4">
+        <!-- Cron Heartbeat Pill -->
+        <div id="heartbeat-pill" class="flex items-center space-x-2 text-xs px-3 py-1.5 rounded-full border border-slate-700 bg-slate-800/80">
+          <span id="heartbeat-dot" class="w-2.5 h-2.5 rounded-full bg-slate-500 animate-pulse"></span>
+          <span id="heartbeat-text" class="font-medium text-slate-300">Checking tick...</span>
+        </div>
+
+        <!-- Auto Refresh -->
+        <label class="flex items-center space-x-2 text-xs text-slate-400 cursor-pointer select-none">
+          <input type="checkbox" id="auto-refresh-toggle" checked class="rounded border-slate-700 bg-slate-800 text-indigo-500 focus:ring-0">
+          <span>Auto-refresh (30s)</span>
+        </label>
+
+        <!-- Manual Refresh Button -->
+        <button id="refresh-btn" onclick="fetchStats()" class="flex items-center space-x-1.5 text-xs bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 px-3 py-1.5 rounded-lg border border-slate-700 transition">
+          <svg id="refresh-icon" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          <span id="refresh-text">Refresh</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN CONTAINER -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+    <!-- KPI STATS CARDS -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <!-- Total Saved -->
+      <div class="bg-slate-900 border border-slate-800/80 rounded-xl p-5 shadow-sm">
+        <div class="flex items-center justify-between text-slate-400 text-xs font-medium">
+          <span>Total Saved</span>
+          <span class="text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded text-[11px] font-semibold">Active Deposits</span>
+        </div>
+        <div class="mt-2 flex items-baseline space-x-2">
+          <span id="stat-total-saved" class="text-2xl font-bold tracking-tight text-white">-</span>
+        </div>
+        <div class="mt-2 text-xs text-slate-400 flex items-center justify-between">
+          <span>Target Pool:</span>
+          <span id="stat-target-pool" class="font-medium text-slate-300">-</span>
+        </div>
+      </div>
+
+      <!-- On-Time Habit Rate -->
+      <div class="bg-slate-900 border border-slate-800/80 rounded-xl p-5 shadow-sm">
+        <div class="flex items-center justify-between text-slate-400 text-xs font-medium">
+          <span>On-Time Feeding Rate</span>
+          <span class="text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded text-[11px] font-semibold">Primary Metric</span>
+        </div>
+        <div class="mt-2 flex items-baseline space-x-2">
+          <span id="stat-ontime-rate" class="text-2xl font-bold tracking-tight text-indigo-400">-</span>
+        </div>
+        <div class="mt-2 text-xs text-slate-400 flex items-center justify-between">
+          <span>Fed vs Missed:</span>
+          <span id="stat-fed-vs-missed" class="font-medium text-slate-300">-</span>
+        </div>
+      </div>
+
+      <!-- Users -->
+      <div class="bg-slate-900 border border-slate-800/80 rounded-xl p-5 shadow-sm">
+        <div class="flex items-center justify-between text-slate-400 text-xs font-medium">
+          <span>Users Ecosystem</span>
+          <span class="text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded text-[11px] font-semibold">Community</span>
+        </div>
+        <div class="mt-2 flex items-baseline space-x-2">
+          <span id="stat-active-users" class="text-2xl font-bold tracking-tight text-white">-</span>
+          <span class="text-xs text-slate-400">active</span>
+        </div>
+        <div class="mt-2 text-xs text-slate-400 flex items-center justify-between">
+          <span>Total / Blocked:</span>
+          <span id="stat-users-breakdown" class="font-medium text-slate-300">-</span>
+        </div>
+      </div>
+
+      <!-- Goals Success -->
+      <div class="bg-slate-900 border border-slate-800/80 rounded-xl p-5 shadow-sm">
+        <div class="flex items-center justify-between text-slate-400 text-xs font-medium">
+          <span>Goals & Graduation</span>
+          <span class="text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded text-[11px] font-semibold">Habit Tracker</span>
+        </div>
+        <div class="mt-2 flex items-baseline space-x-2">
+          <span id="stat-graduated-goals" class="text-2xl font-bold tracking-tight text-amber-400">-</span>
+          <span class="text-xs text-slate-400">graduated</span>
+        </div>
+        <div class="mt-2 text-xs text-slate-400 flex items-center justify-between">
+          <span>Active Goals:</span>
+          <span id="stat-active-goals" class="font-medium text-slate-300">-</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- TABS NAVIGATION -->
+    <div class="border-b border-slate-800 flex space-x-2 text-sm font-medium">
+      <button onclick="switchTab('overview')" id="tab-btn-overview" class="tab-btn active px-4 py-2.5 border-b-2 border-transparent transition-colors">
+        📊 Overview & Charts
+      </button>
+      <button onclick="switchTab('devops')" id="tab-btn-devops" class="tab-btn px-4 py-2.5 border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition-colors">
+        🛠 DevOps & Cron Health
+      </button>
+      <button onclick="switchTab('goals')" id="tab-btn-goals" class="tab-btn px-4 py-2.5 border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition-colors">
+        🐾 Active Goals Explorer
+      </button>
+      <button onclick="switchTab('analytics')" id="tab-btn-analytics" class="tab-btn px-4 py-2.5 border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition-colors">
+        📈 Product & A/B Analytics
+      </button>
+    </div>
+
+    <!-- TAB 1: OVERVIEW & CHARTS -->
+    <div id="tab-content-overview" class="space-y-6">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Chart: Mood Distribution -->
+        <div class="bg-slate-900 border border-slate-800/80 rounded-xl p-5 shadow-sm flex flex-col">
+          <h2 class="text-sm font-semibold text-slate-200 mb-1">Companion Mood Distribution</h2>
+          <p class="text-xs text-slate-400 mb-4">Current mood condition of all active pet companions</p>
+          <div class="relative flex-1 flex items-center justify-center min-h-[220px]">
+            <canvas id="moodChart"></canvas>
+          </div>
+          <div id="mood-legend" class="grid grid-cols-2 gap-2 mt-4 text-xs text-slate-300">
+            <!-- Populated via JS -->
+          </div>
+        </div>
+
+        <!-- Chart: Outbox Status Breakdown -->
+        <div class="bg-slate-900 border border-slate-800/80 rounded-xl p-5 shadow-sm flex flex-col">
+          <h2 class="text-sm font-semibold text-slate-200 mb-1">Outbox Notifications Status</h2>
+          <p class="text-xs text-slate-400 mb-4">Real-time status of scheduled reminder messages</p>
+          <div class="relative flex-1 flex items-center justify-center min-h-[220px]">
+            <canvas id="outboxChart"></canvas>
+          </div>
+          <div id="outbox-legend" class="grid grid-cols-3 gap-2 mt-4 text-xs text-slate-300 text-center">
+            <!-- Populated via JS -->
+          </div>
+        </div>
+
+        <!-- Habit Summary Card -->
+        <div class="bg-slate-900 border border-slate-800/80 rounded-xl p-5 shadow-sm space-y-4">
+          <h2 class="text-sm font-semibold text-slate-200">Habit Building Insights</h2>
+          <p class="text-xs text-slate-400">Core metrics driving user consistency and companion health</p>
+
+          <div class="space-y-3">
+            <div class="bg-slate-950 p-3 rounded-lg border border-slate-800/80">
+              <div class="flex justify-between text-xs mb-1">
+                <span class="text-slate-400">Free Food vs Cash Deposits</span>
+                <span id="free-food-pct" class="font-semibold text-slate-200">0%</span>
+              </div>
+              <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+                <div id="free-food-bar" class="bg-amber-400 h-2 rounded-full" style="width: 0%"></div>
+              </div>
+              <p class="text-[11px] text-slate-500 mt-1">Free food allows keeping habit streaks alive during cash-tight days.</p>
+            </div>
+
+            <div class="bg-slate-950 p-3 rounded-lg border border-slate-800/80">
+              <div class="flex justify-between text-xs mb-1">
+                <span class="text-slate-400">Day-7 Retention Rate</span>
+                <span id="d7-retention-val" class="font-semibold text-emerald-400">0%</span>
+              </div>
+              <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+                <div id="d7-retention-bar" class="bg-emerald-500 h-2 rounded-full" style="width: 0%"></div>
+              </div>
+            </div>
+
+            <div class="bg-slate-950 p-3 rounded-lg border border-slate-800/80">
+              <div class="flex justify-between text-xs mb-1">
+                <span class="text-slate-400">Day-21 Retention Rate</span>
+                <span id="d21-retention-val" class="font-semibold text-indigo-400">0%</span>
+              </div>
+              <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+                <div id="d21-retention-bar" class="bg-indigo-500 h-2 rounded-full" style="width: 0%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: DEVOPS & CRON HEALTH -->
+    <div id="tab-content-devops" class="hidden space-y-6">
+      <!-- Last Tick Card & Lease Locks -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Last Tick Status -->
+        <div class="bg-slate-900 border border-slate-800/80 rounded-xl p-5 shadow-sm">
+          <h2 class="text-sm font-semibold text-slate-200 mb-2 flex items-center justify-between">
+            <span>Last Cron Tick Heartbeat</span>
+            <span id="tick-health-badge" class="text-xs px-2 py-0.5 rounded font-medium">-</span>
+          </h2>
+          <div class="mt-3 space-y-2 text-xs">
+            <div class="flex justify-between py-1 border-b border-slate-800">
+              <span class="text-slate-400">Executed At:</span>
+              <span id="tick-last-time" class="font-mono text-slate-200">-</span>
+            </div>
+            <div class="flex justify-between py-1 border-b border-slate-800">
+              <span class="text-slate-400">Duration:</span>
+              <span id="tick-last-dur" class="font-mono text-slate-200">-</span>
+            </div>
+            <div class="flex justify-between py-1 border-b border-slate-800">
+              <span class="text-slate-400">Error:</span>
+              <span id="tick-last-err" class="font-mono text-slate-400">None</span>
+            </div>
+            <div class="flex justify-between py-1">
+              <span class="text-slate-400">Stale Claims (>5m):</span>
+              <span id="stale-claims-val" class="font-bold text-slate-200">0</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Lease Locks -->
+        <div class="bg-slate-900 border border-slate-800/80 rounded-xl p-5 shadow-sm">
+          <h2 class="text-sm font-semibold text-slate-200 mb-2">Active Distributed Locks (JobLocks)</h2>
+          <p class="text-xs text-slate-400 mb-3">Postgres lease locks preventing overlapping tick executions</p>
+          <div id="locks-container" class="space-y-2 text-xs">
+            <!-- Populated via JS -->
+            <p class="text-slate-500 italic">No active locks held.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent 10 Tick Runs Table -->
+      <div class="bg-slate-900 border border-slate-800/80 rounded-xl overflow-hidden shadow-sm">
+        <div class="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
+          <h2 class="text-sm font-semibold text-slate-200">Recent Cron Runs (Tick Log)</h2>
+          <span class="text-xs text-slate-400">1-minute interval</span>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-slate-950/60 text-slate-400 uppercase tracking-wider border-b border-slate-800">
+              <tr>
+                <th class="px-4 py-3">ID</th>
+                <th class="px-4 py-3">Time</th>
+                <th class="px-4 py-3">Duration</th>
+                <th class="px-4 py-3">Periods Closed</th>
+                <th class="px-4 py-3">Missed</th>
+                <th class="px-4 py-3">Graduated</th>
+                <th class="px-4 py-3">Notifs Sent</th>
+                <th class="px-4 py-3">Status</th>
+              </tr>
+            </thead>
+            <tbody id="ticks-table-body" class="divide-y divide-slate-800/60 text-slate-300 font-mono">
+              <tr><td colspan="8" class="text-center py-6 text-slate-500">Loading ticks...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: ACTIVE GOALS EXPLORER -->
+    <div id="tab-content-goals" class="hidden space-y-6">
+      <div class="bg-slate-900 border border-slate-800/80 rounded-xl overflow-hidden shadow-sm">
+        <div class="px-5 py-4 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 class="text-sm font-semibold text-slate-200">Recent Active Savings Goals</h2>
+            <p class="text-xs text-slate-400">Real-time companion progress and condition scores</p>
+          </div>
+          <input type="text" id="goals-search" placeholder="Filter by pet or goal name..." onkeyup="filterGoalsTable()" class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 w-full sm:w-64">
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-slate-950/60 text-slate-400 uppercase tracking-wider border-b border-slate-800">
+              <tr>
+                <th class="px-4 py-3">Companion</th>
+                <th class="px-4 py-3">Goal Name</th>
+                <th class="px-4 py-3">Frequency</th>
+                <th class="px-4 py-3">Progress</th>
+                <th class="px-4 py-3">Condition</th>
+                <th class="px-4 py-3">Mood</th>
+                <th class="px-4 py-3">Created</th>
+              </tr>
+            </thead>
+            <tbody id="goals-table-body" class="divide-y divide-slate-800/60 text-slate-300">
+              <tr><td colspan="7" class="text-center py-6 text-slate-500">Loading goals...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 4: PRODUCT & A/B ANALYTICS -->
+    <div id="tab-content-analytics" class="hidden space-y-6">
+      <!-- A/B Experiment: Pet vs Plain -->
+      <div class="bg-slate-900 border border-slate-800/80 rounded-xl p-5 shadow-sm space-y-4">
+        <div>
+          <h2 class="text-sm font-semibold text-slate-200">A/B Testing: Pet Companion vs Plain Copy</h2>
+          <p class="text-xs text-slate-400">Evaluating if emotional pet care mechanics improve savings completion rates</p>
+        </div>
+
+        <div id="variants-container" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- Populated via JS -->
+        </div>
+      </div>
+
+      <!-- Free Food Ratio Breakdown -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="bg-slate-900 border border-slate-800/80 rounded-xl p-5 shadow-sm">
+          <h2 class="text-sm font-semibold text-slate-200 mb-2">Setoran Riil vs Free Food</h2>
+          <p class="text-xs text-slate-400 mb-4">Total peristiwa pemberian makan pet yang tercatat di ledger</p>
+          <div class="space-y-3 text-xs">
+            <div class="flex justify-between items-center py-2 border-b border-slate-800">
+              <span class="flex items-center gap-2">💰 Setoran Uang Riil (Deposits)</span>
+              <span id="analytics-deposits-count" class="font-bold text-emerald-400">-</span>
+            </div>
+            <div class="flex justify-between items-center py-2 border-b border-slate-800">
+              <span class="flex items-center gap-2">🥣 Free Food ($0 Habit Keeper)</span>
+              <span id="analytics-freefood-count" class="font-bold text-amber-400">-</span>
+            </div>
+            <div class="flex justify-between items-center py-2">
+              <span class="text-slate-400">Rasio Free Food:</span>
+              <span id="analytics-freefood-ratio" class="font-bold text-indigo-400">-</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800/80 rounded-xl p-5 shadow-sm">
+          <h2 class="text-sm font-semibold text-slate-200 mb-2">Retention Benchmark (SDD 14)</h2>
+          <p class="text-xs text-slate-400 mb-4">Persentase pengguna yang kembali berinteraksi setelah 7 & 21 hari</p>
+          <div class="space-y-3 text-xs">
+            <div class="flex justify-between items-center py-2 border-b border-slate-800">
+              <span class="text-slate-400">Day-7 Retained Users:</span>
+              <span id="analytics-d7-count" class="font-bold text-slate-200">-</span>
+            </div>
+            <div class="flex justify-between items-center py-2 border-b border-slate-800">
+              <span class="text-slate-400">Day-21 Retained Users:</span>
+              <span id="analytics-d21-count" class="font-bold text-slate-200">-</span>
+            </div>
+            <div class="text-[11px] text-slate-500 italic pt-1">
+              *Diukur dari pengguna yang mencatat event aktivitas minimal 7 atau 21 hari sejak /start.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="border-t border-slate-800/80 py-4 text-center text-xs text-slate-500">
+    Budget Care Bot Telemetry Dashboard &bull; Read-Only Telemetry &bull; Updated: <span id="last-updated-ts">-</span>
+  </footer>
+
+</body>
+</html>

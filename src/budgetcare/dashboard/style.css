@@ -1,0 +1,33 @@
+/* Budget Care Monitoring Dashboard Styles */
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.tab-btn.active {
+  border-color: #6366f1;
+  color: #818cf8;
+  background-color: rgba(99, 102, 241, 0.1);
+}
+
+[x-cloak] {
+  display: none !important;
+}
+
+/* Custom scrollbars for data tables */
+.overflow-x-auto::-webkit-scrollbar {
+  height: 6px;
+}
+
+.overflow-x-auto::-webkit-scrollbar-track {
+  background: #090d16;
+}
+
+.overflow-x-auto::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 3px;
+}
+
+.overflow-x-auto::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}

@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from budgetcare.api.routes import health, telegram, tick
+from budgetcare.api.routes import dashboard, health, telegram, tick
 from budgetcare.config import settings
 from budgetcare.logging import logger, setup_logging
 
@@ -25,5 +25,6 @@ def create_app() -> FastAPI:
     app.include_router(health.router)
     app.include_router(telegram.router)
     app.include_router(tick.router)
+    app.include_router(dashboard.router)
 
     return app
