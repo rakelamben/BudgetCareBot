@@ -53,7 +53,10 @@ async def handle_delete_callback(callback: CallbackQuery, user: UserTable, uow: 
     action = parts[1]
 
     if action == "no":
-        await callback.answer()
+        try:
+            await callback.answer()
+        except Exception:
+            pass
         await uow.conversations.delete(user.id)
         cancelled_text = get_text("delete_cancelled", user.variant)
         try:
@@ -79,10 +82,17 @@ async def handle_delete_callback(callback: CallbackQuery, user: UserTable, uow: 
         goal_id = int(parts[2])
         goal = await uow.goals.get_by_id(goal_id)
         if not goal or goal.user_id != user.id:
-            await callback.answer("Goal not found.", show_alert=True)
+            try:
+                await callback.answer("Goal not found.", show_alert=True)
+            except Exception:
+                pass
             return
 
-        await callback.answer()
+        try:
+            await callback.answer()
+        except Exception:
+            pass
+
         pet_emoji = SPECIES_EMOJI.get(goal.species.lower(), "🐾")
         text = get_text(
             "delete_prompt",
@@ -116,10 +126,17 @@ async def handle_delete_callback(callback: CallbackQuery, user: UserTable, uow: 
         goal_id = int(parts[2])
         goal = await uow.goals.get_by_id(goal_id)
         if not goal or goal.user_id != user.id:
-            await callback.answer("Goal not found.", show_alert=True)
+            try:
+                await callback.answer("Goal not found.", show_alert=True)
+            except Exception:
+                pass
             return
 
-        await callback.answer()
+        try:
+            await callback.answer()
+        except Exception:
+            pass
+
         goal_name = goal.name
         await delete_single_goal(uow, user.id, goal.id)
         await uow.conversations.delete(user.id)
